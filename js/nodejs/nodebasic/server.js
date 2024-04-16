@@ -1,16 +1,54 @@
-// 1. 서버 사용을 위해서 http 모듈을 http 변수에 담는다. (모듈과 변수의 이름은 달라도 된다.) 
-var http = require('http'); 
+const express = require('express');
+const app = express();
+const path = require('path');
+const mongoose = require('mongoose');
+const User = require('./public/User.js');
+const bodyParser = require('body-parser'); // body-parser 미들웨어 추가
 
-// 2. http 모듈로 서버를 생성한다.
-//    아래와 같이 작성하면 서버를 생성한 후, 사용자로 부터 http 요청이 들어오면 function 블럭내부의 코드를 실행해서 응답한다.
-var server = http.createServer(function(request,response){ 
+// body-parser 미들웨어 설정
+app.use(bodyParser.json());
 
-    response.writeHead(200,{'Content-Type':'text/html'});
-    response.end('Hello node.js!!');
-
+// MongoDB와의 연결 설정
+mongoose.connect('mongodb://localhost:27017/Practice', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function() {
+  console.log('Connected to MongoDB');
+  startServer();
 });
 
-// 3. listen 함수로 8080 포트를 가진 서버를 실행한다. 서버가 실행된 것을 콘솔창에서 확인하기 위해 'Server is running...' 로그를 출력한다
-server.listen(8080, function(){ 
-    console.log('Server is running...');
-});
+function startServer() {
+  // 정적 파일 제공을 위해 HTML 파일이 위치한 디렉토리를 지정합니다.
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  // POST 요청을 처리하는 라우트 핸들러
+  app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+  
+    try {
+      // 입력된 이메일과 비밀번호를 사용하여 사용자를 조회합니다.
+      const user = await User.findOne({ email, password });
+  
+      // 사용자가 존재하지 않거나 비밀번호가 일치하지 않으면 인증 실패 메시지를 클라이언트로 전송합니다.
+      if (!user) {
+        return res.status(401).send('Authentication failed');
+      }
+  
+      // 인증이 성공하면 성공 메시지를 클라이언트로 전송합니다.
+      res.send('Authentication successful');
+    } catch (error) {
+      // 조회 중 오류가 발생하면 오류 메시지를 클라이언트로 전송합니다.
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
+  // 서버를 3000번 포트로 실행합니다.
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port http://localhost:${PORT}`);
+  });
+}
